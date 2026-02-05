@@ -1,4 +1,4 @@
-# 🎮 Telegram Game Bot 
+ 🎮 Telegram Game Bot 
 
 Multiplayer Telegram mini-game bot with MongoDB integration. Built with Node.js and deployed on Render.
 
