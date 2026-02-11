@@ -1,17 +1,21 @@
+require('dotenv').config();  // ПЕРВЫЙ!
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+
 const { Telegraf, Markup } = require('telegraf');
-require('dotenv').config();
 const db = require('./database');
 const achievements = require('./achievements');
 const multiplayer = require('./multiplayer');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
-
 const activeGames = new Map();
 
 (async () => {
   await db.connectDatabase();
   bot.launch();
-  console.log('✅ Bot launched!');
+  console.log('✅ Bot launched with AI!');
 })();
 
 function mainMenuKeyboard() {
@@ -101,10 +105,17 @@ bot.action(/solo_(easy|medium|hard)/, async (ctx) => {
   );
 });
 
+// ✅ НОВЫЙ ОБРАБОТЧИК С AI
 bot.on('text', async (ctx) => {
   const userId = ctx.from.id;
-  const activeGame = activeGames.get(userId);
+  const text = ctx.message.text;
   
+  // Игнорируем команды
+  if (text.startsWith('/')) return;
+  
+  const guess = parseInt(text);
+  
+  // МУЛЬТИПЛЕЕР (твой оригинальный код)
   const mpRooms = Array.from(multiplayer.activeRooms.entries());
   const userRoom = mpRooms.find(([roomId, data]) => {
     const room = data.room;
@@ -116,8 +127,6 @@ bot.on('text', async (ctx) => {
     const room = await db.getRoom(roomId);
     
     if (room && room.status === 'playing' && room.players.some(p => p.userId === userId)) {
-      const guess = parseInt(ctx.message.text);
-      
       if (isNaN(guess)) {
         return ctx.reply('❌ Please enter a valid number!');
       }
@@ -130,8 +139,10 @@ bot.on('text', async (ctx) => {
     }
   }
   
+  // ОЖИДАНИЕ КОДА КОМНАТЫ
+  const activeGame = activeGames.get(userId);
   if (activeGame && activeGame.waitingForRoomCode) {
-    const roomCode = ctx.message.text.toUpperCase().trim();
+    const roomCode = text.toUpperCase().trim();
     
     if (roomCode.length === 6) {
       activeGames.delete(userId);
@@ -158,61 +169,75 @@ bot.on('text', async (ctx) => {
     }
   }
   
-  if (!activeGame || activeGame.waitingForRoomCode) {
-    return ctx.reply(
-      'Start a game first! Press /start',
-      mainMenuKeyboard()
-    );
-  }
-  
-  const guess = parseInt(ctx.message.text);
-  
-  if (isNaN(guess)) {
-    return ctx.reply('❌ Please enter a valid number!');
-  }
-  
-  if (guess < 1 || guess > activeGame.maxNumber) {
-    return ctx.reply(`❌ Number must be between 1 and ${activeGame.maxNumber}!`);
-  }
-  
-  const result = guess === activeGame.secretNumber ? 'correct' 
-    : guess < activeGame.secretNumber ? 'higher' 
-    : 'lower';
-  
-  await db.addGuess(activeGame.gameId, guess, result);
-  
-  if (guess === activeGame.secretNumber) {
-    clearTimeout(activeGame.timeoutId);
-    
-    const { game, duration } = await db.finishGame(activeGame.gameId, true);
-    activeGames.delete(userId);
-    
-    const unlockedAchievements = await achievements.checkAchievements(userId, game, duration);
-    
-    let message = `🎉 Congratulations! You guessed the number ${activeGame.secretNumber}!\n` +
-      `📊 Attempts: ${game.attempts}\n` +
-      `⏱️ Time: ${duration.toFixed(1)}s\n`;
-    
-    if (unlockedAchievements.length > 0) {
-      message += `\n🎖️ New Achievements:\n`;
-      unlockedAchievements.forEach(a => {
-        message += `${a.name}\n`;
-      });
+  // СОЛО ИГРА (твой оригинальный код)
+  if (activeGame && !activeGame.waitingForRoomCode) {
+    if (isNaN(guess)) {
+      return ctx.reply('❌ Please enter a valid number!');
     }
     
-    ctx.reply(
-      message,
-      Markup.inlineKeyboard([
-        [Markup.button.callback('🔄 Play Again', 'solo_game')],
-        [Markup.button.callback('📊 Stats', 'stats')],
-        [Markup.button.callback('🏠 Menu', 'main_menu')]
-      ])
-    );
-  } else {
-    const hint = result === 'higher' ? 'HIGHER ⬆️' : 'LOWER ⬇️';
-    const dbInstance = db.db();
-    const gameData = await dbInstance.collection('games').findOne({ _id: activeGame.gameId });
-    ctx.reply(`My number is ${hint}\nAttempts: ${gameData.attempts}`);
+    if (guess < 1 || guess > activeGame.maxNumber) {
+      return ctx.reply(`❌ Number must be between 1 and ${activeGame.maxNumber}!`);
+    }
+    
+    const result = guess === activeGame.secretNumber ? 'correct' 
+      : guess < activeGame.secretNumber ? 'higher' 
+      : 'lower';
+    
+    await db.addGuess(activeGame.gameId, guess, result);
+    
+    if (guess === activeGame.secretNumber) {
+      clearTimeout(activeGame.timeoutId);
+      
+      const { game, duration } = await db.finishGame(activeGame.gameId, true);
+      activeGames.delete(userId);
+      
+      const unlockedAchievements = await achievements.checkAchievements(userId, game, duration);
+      
+      let message = `🎉 Congratulations! You guessed the number ${activeGame.secretNumber}!\n` +
+        `📊 Attempts: ${game.attempts}\n` +
+        `⏱️ Time: ${duration.toFixed(1)}s\n`;
+      
+      if (unlockedAchievements.length > 0) {
+        message += `\n🎖️ New Achievements:\n`;
+        unlockedAchievements.forEach(a => {
+          message += `${a.name}\n`;
+        });
+      }
+      
+      ctx.reply(
+        message,
+        Markup.inlineKeyboard([
+          [Markup.button.callback('🔄 Play Again', 'solo_game')],
+          [Markup.button.callback('📊 Stats', 'stats')],
+          [Markup.button.callback('🏠 Menu', 'main_menu')]
+        ])
+      );
+    } else {
+      const hint = result === 'higher' ? 'HIGHER ⬆️' : 'LOWER ⬇️';
+      const dbInstance = db.db();
+      const gameData = await dbInstance.collection('games').findOne({ _id: activeGame.gameId });
+      ctx.reply(`My number is ${hint}\nAttempts: ${gameData.attempts}`);
+    }
+    return; // ✅ ВАЖНО: выход после обработки игры
+  }
+  
+  // ✅ AI ЧАТ (НОВОЕ!)
+  if (isNaN(guess)) {
+    try {
+      const prompt = `You are a friendly assistant in a number guessing game bot. 
+      Users can ask about rules, request hints, or just chat. 
+      Always respond in English, keep answers brief (under 100 words) and friendly.
+      Be encouraging and fun!
+      User's message: ${text}`;
+      
+      const result = await model.generateContent(prompt);
+      const aiResponse = result.response.text();
+      
+      ctx.reply(aiResponse);
+    } catch (error) {
+      console.error('AI Error:', error);
+      ctx.reply('Sorry, I couldn\'t process your message. Try again or type /start for a new game! 🎮');
+    }
   }
 });
 
@@ -231,6 +256,7 @@ async function handleTimeout(userId) {
   );
 }
 
+// Остальные обработчики действий остаются БЕЗ ИЗМЕНЕНИЙ
 bot.action('stats', async (ctx) => {
   await ctx.answerCbQuery();
   
@@ -272,7 +298,7 @@ bot.action('leaderboard', async (ctx) => {
   leaders.forEach((user, index) => {
     const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
     message += `${medal} @${user.username}\n`;
-    message += `   Best: ${user.bestAttempts} attempts | Wins: ${user.totalWins}\n\n`;
+    message += `  Best: ${user.bestAttempts} attempts | Wins: ${user.totalWins}\n\n`;
   });
   
   ctx.reply(message, mainMenuKeyboard());
@@ -402,6 +428,8 @@ bot.help((ctx) => {
     '1. Create or join a room\n' +
     '2. First to guess wins!\n' +
     '3. 2 minute time limit\n\n' +
+    '🤖 AI Assistant:\n' +
+    'Ask me anything! "How to play?", "Give hint", "Tell joke"\n\n' +
     '🎖️ Unlock achievements and climb the leaderboard!\n\n' +
     'Commands:\n' +
     '/start - Main menu\n' +
