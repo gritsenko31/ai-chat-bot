@@ -1,13 +1,17 @@
 const { Telegraf } = require('telegraf');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
+
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
 
 // Хранилище для сессий
 const userSessions = new Map();
 
+
 const MESSAGE_CHUNK_SIZE = 4000;
+
 
 // Получить или создать сессию
 function getUserSession(userId) {
@@ -32,6 +36,7 @@ function getUserSession(userId) {
   return userSessions.get(userId);
 }
 
+
 // Разбивка длинных сообщений
 function splitMessage(text, maxLength = MESSAGE_CHUNK_SIZE) {
   const chunks = [];
@@ -51,33 +56,41 @@ function splitMessage(text, maxLength = MESSAGE_CHUNK_SIZE) {
   return chunks;
 }
 
+
 // Команда /start
 bot.start((ctx) => {
   const welcomeMessage = `👋 Hello! I'm an AI bot powered by Gemini 2.5 Flash.
 
+
 📝 I understand context and remember our conversation.
+
 
 🔧 Commands:
 /clear - Clear chat history
 /help - Show help
+
 
 Just send me a message!`;
   
   return ctx.reply(welcomeMessage);
 });
 
+
 // Команда /help
 bot.command('help', (ctx) => {
   const helpMessage = `ℹ️ Bot Help:
+
 
 /start - Start the bot
 /clear - Clear conversation history
 /help - Show this help
 
+
 💡 Tip: I remember our conversation context!`;
   
   return ctx.reply(helpMessage);
 });
+
 
 // Команда /clear
 bot.command('clear', (ctx) => {
@@ -85,6 +98,7 @@ bot.command('clear', (ctx) => {
   userSessions.delete(userId);
   return ctx.reply('✅ Chat history cleared!');
 });
+
 
 // Обработка текстовых сообщений
 bot.on('text', async (ctx) => {
@@ -115,8 +129,30 @@ bot.on('text', async (ctx) => {
     
     let errorMessage = '❌ An error occurred: ' + error.message;
     
-    if (error.message.includes('429')) {
-      errorMessage = '⚠️ Rate limit exceeded. Try again in a minute.';
+    if (error.message.includes('429') || error.message.includes('quota') || error.message.includes('RESOURCE_EXHAUSTED')) {
+      errorMessage = '⚠️ Rate limit exceeded. Retrying in 5 seconds...';
+      await ctx.reply(errorMessage);
+      
+      // Автоматически повторить через 5 секунд
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      try {
+        await ctx.sendChatAction('typing');
+        const session = getUserSession(userId);
+        const result = await session.chat.sendMessage(userMessage);
+        const aiResponse = result.response.text();
+        
+        const chunks = splitMessage(aiResponse);
+        for (const chunk of chunks) {
+          await ctx.reply(chunk);
+          if (chunks.length > 1) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        }
+        return; // Успешно обработали
+      } catch (retryError) {
+        console.error('Retry error:', retryError);
+        errorMessage = '❌ Still rate limited. Please wait a minute and try again.';
+      }
     } else if (error.message.includes('SAFETY')) {
       errorMessage = '⚠️ Content filtered. Try rephrasing.';
     }
@@ -124,6 +160,7 @@ bot.on('text', async (ctx) => {
     await ctx.reply(errorMessage);
   }
 });
+
 
 // Vercel Serverless Function Handler
 module.exports = async (req, res) => {
