@@ -1,119 +1,161 @@
- 🎮 Telegram Game Bot with AI
+# 🤖 AI Chat Bot (Telegram)
 
-Multiplayer Telegram mini-game bot with MongoDB integration. Built with Node.js and deployed on Render.
+Telegram bot powered by **Llama 3.3 70B** via Groq API. Fast, context-aware AI assistant with conversation memory.
 
-**🤖 Try it now:** [@my_guess_game_bot](https://t.me/my_guess_game_bot)
+**🔗 Try it now: [@ai_chat3_bot](https://t.me/ai_chat3_bot)**
 
-[![Open in Telegram](https://img.shields.io/badge/Open%20in%20Telegram-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/my_guess_game_bot)
+## ✨ Features
 
-## 🚀 Features
-
-- **Multiplayer gameplay** – Real-time game sessions
-- **MongoDB database** – Persistent player data and achievements
-- **Achievement system** – Track player progress
-- **Auto-deployment** – Connected to Render for continuous delivery
-- **24/7 uptime monitoring** – UptimeRobot keeps the bot active
+- 💬 Natural conversation with context memory
+- ⚡ Ultra-fast responses (Groq LPU inference)
+- 🧠 Powered by Llama 3.3 70B (70 billion parameters)
+- 🌐 Multilingual support
+- 📝 Conversation history management
+- 🚀 Deployed on Vercel (serverless)
 
 ## 🛠️ Tech Stack
 
-- **Node.js** – Backend runtime
-- **Telegraf** – Telegram Bot API framework
-- **MongoDB** – Database for game state and user data
-- **Express** – Web server for health checks
-- **Render** – Hosting platform (free tier)
+- **Bot Framework**: [Telegraf](https://telegraf.js.org/)
+- **AI Model**: Llama 3.3 70B via [Groq API](https://groq.com/)
+- **Runtime**: Node.js
+- **Deployment**: Vercel Serverless Functions
+- **Version Control**: Git/GitHub
 
-## 📦 Installation
+## 📋 Commands
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/gritsenko31/telegram-game-bot.git
-   cd telegram-game-bot
-Install dependencies:
+- `/start` - Start the bot and see welcome message
+- `/help` - Show available commands
+- `/clear` - Clear conversation history
+
+## 🚀 Setup
+
+### Prerequisites
+
+- Node.js 18+ installed
+- Telegram Bot Token ([get from @BotFather](https://t.me/BotFather))
+- Groq API Key ([get from console.groq.com](https://console.groq.com/keys))
+- Vercel account
+
+### Installation
+
+1. **Clone the repository**
+```bash
+git clone https://github.com/YOUR_USERNAME/ai-chat-bot.git
+cd ai-chat-bot
+Install dependencies
 
 bash
 npm install
-Create .env file with your credentials:
+Create .env file
 
 text
 BOT_TOKEN=your_telegram_bot_token
-MONGODB_URI=your_mongodb_connection_string
-PORT=10000
-Run the bot:
+GROQ_API_KEY=your_groq_api_key
+Test locally (optional)
 
 bash
-node bot.js
-🌐 Deployment
-The bot is deployed on Render (free tier):
+node api/webhook.js
+Deployment to Vercel
+Install Vercel CLI
 
-Live URL: https://telegram-game-bot-tbij.onrender.com/
+bash
+npm install -g vercel
+Login to Vercel
 
-Note: First request after inactivity may take ~20-30s to wake up
+bash
+vercel login
+Deploy
 
-Deploy to Render
-Fork this repo
+bash
+vercel --prod
+Set environment variables in Vercel Dashboard
 
-Connect to Render
+Go to Project Settings → Environment Variables
 
-Set environment variables: BOT_TOKEN, MONGODB_URI
+Add BOT_TOKEN and GROQ_API_KEY
 
-Deploy as Web Service
+Set Telegram webhook
 
-📝 Project Structure
+bash
+curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook?url=https://your-vercel-url.vercel.app/api/webhook"
+📁 Project Structure
 text
-telegram-game-bot/
-├── bot.js              # Main bot logic
-├── database.js         # MongoDB connection
-├── multiplayer.js      # Multiplayer game logic
-├── achievements.js     # Achievement tracking
-├── package.json        # Dependencies
-└── .gitignore          # Git ignore rules
-## 🎯 How to Use
+ai-chat-bot/
+├── api/
+│   └── webhook.js       # Main bot logic & Vercel handler
+├── package.json         # Dependencies
+├── .env                 # Environment variables (not in git)
+├── .gitignore          # Git ignore rules
+└── README.md           # This file
+🔧 Configuration
+Groq API Settings
+Model: llama-3.3-70b-versatile
 
-**Try the live bot:** [@my_guess_game_bot](https://t.me/my_guess_game_bot)
+Temperature: 0.7
 
-1. Open the bot in Telegram: https://t.me/my_guess_game_bot
-2. Start the bot with `/start`
-3. Follow the game instructions
-4. Compete with other players in real-time
+Max tokens: 2048
 
-> **Note:** Bot runs on Render free tier – first message after inactivity may take ~20-30s to wake up.
+Top P: 0.9
 
+Rate Limits (Free Tier)
+30 requests per minute (RPM)
 
-🔧 Development
-This is a portfolio project demonstrating:
+14,400 requests per day
 
-Telegram Bot API integration
+7,000 requests per week
 
-Real-time multiplayer functionality
+Conversation History
+Stores last 20 messages per user
 
-Database management with MongoDB
+Automatically managed in memory
 
-Cloud deployment and monitoring
+Use /clear to reset
 
-AI-assisted development workflow
+📝 Usage Example
+text
+User: Hello!
+Bot: It's nice to meet you. Is there something I can help you with?
 
- 🤖 AI Assistant Update (February 12, 2026)
+User: What's the capital of France?
+Bot: The capital of France is Paris.
 
-The bot now includes an **intelligent AI assistant** powered by Google Gemini 2.5 Flash!
+User: Tell me more about it
+Bot: [Detailed response about Paris with context from previous message]
+🐛 Troubleshooting
+Bot doesn't respond
+Check webhook status: curl https://api.telegram.org/bot<TOKEN>/getWebhookInfo
 
-### What's New:
-- **Always Available**: Chat with AI anytime - during gameplay, in menus, or when idle
-- **Smart Responses**: Ask about rules, request hints, or just have a conversation
-- **Seamless Integration**: Type any text (not a number) to interact with AI
-- **English Only**: All AI responses are in English for consistency
-- **Non-Intrusive**: Numbers trigger gameplay, text triggers AI chat
+Verify environment variables in Vercel
 
-### Use Cases:
-- Learn game rules: *"How do I play?"*
-- Get strategic advice: *"What's the best strategy for hard mode?"*
-- Request hints: *"Give me a hint for my current game"*
-- Casual chat: *"Tell me a joke"* or *"Hello, how are you?"*
+Check Vercel deployment logs
 
-The AI understands context and provides helpful, friendly responses in under 100 words.
+Rate limit errors
+Wait 1 minute (free tier: 30 RPM)
 
-👤 Author
-gritsenko31
+Use /clear if conversation is too long
 
+Webhook errors
+Ensure Vercel function is deployed
+
+Verify URL in webhook: https://your-app.vercel.app/api/webhook
+
+📄 License
+MIT License - feel free to use for your projects!
+
+🤝 Contributing
+Pull requests are welcome! For major changes, please open an issue first.
+
+📧 Contact
+Created by gritsenko31
 GitHub: @gritsenko31
 
-Portfolio: vibecodegames.org
+Telegram: @dmitry3113
+
+🙏 Acknowledgments
+Groq for ultra-fast LLM inference
+
+Telegraf for excellent Telegram bot framework
+
+Vercel for serverless deployment
+
+⭐ Star this repo if you found it helpful!
