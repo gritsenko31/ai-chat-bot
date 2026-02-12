@@ -1,41 +1,24 @@
 const { Telegraf } = require('telegraf');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-
+const Groq = require('groq-sdk');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 // Хранилище для сессий
 const userSessions = new Map();
 
-
 const MESSAGE_CHUNK_SIZE = 4000;
-
 
 // Получить или создать сессию
 function getUserSession(userId) {
   if (!userSessions.has(userId)) {
-    const model = genAI.getGenerativeModel({ 
-      model: 'gemini-2.5-flash',
-      generationConfig: {
-        temperature: 0.9,
-        topK: 40,
-        topP: 0.95,
-        maxOutputTokens: 8192,
-      }
-    });
-    
-    const chat = model.startChat({ history: [] });
-    
     userSessions.set(userId, {
-      chat,
+      history: [],
       messageCount: 0
     });
   }
   return userSessions.get(userId);
 }
-
 
 // Разбивка длинных сообщений
 function splitMessage(text, maxLength = MESSAGE_CHUNK_SIZE) {
@@ -56,41 +39,33 @@ function splitMessage(text, maxLength = MESSAGE_CHUNK_SIZE) {
   return chunks;
 }
 
-
 // Команда /start
 bot.start((ctx) => {
-  const welcomeMessage = `👋 Hello! I'm an AI bot powered by Gemini 2.5 Flash.
-
+  const welcomeMessage = `👋 Hello! I'm an AI bot powered by Llama 3.3 70B via Groq.
 
 📝 I understand context and remember our conversation.
-
 
 🔧 Commands:
 /clear - Clear chat history
 /help - Show help
-
 
 Just send me a message!`;
   
   return ctx.reply(welcomeMessage);
 });
 
-
 // Команда /help
 bot.command('help', (ctx) => {
   const helpMessage = `ℹ️ Bot Help:
-
 
 /start - Start the bot
 /clear - Clear conversation history
 /help - Show this help
 
-
 💡 Tip: I remember our conversation context!`;
   
   return ctx.reply(helpMessage);
 });
-
 
 // Команда /clear
 bot.command('clear', (ctx) => {
@@ -98,7 +73,6 @@ bot.command('clear', (ctx) => {
   userSessions.delete(userId);
   return ctx.reply('✅ Chat history cleared!');
 });
-
 
 // Обработка текстовых сообщений
 bot.on('text', async (ctx) => {
@@ -111,8 +85,34 @@ bot.on('text', async (ctx) => {
     await ctx.sendChatAction('typing');
     
     const session = getUserSession(userId);
-    const result = await session.chat.sendMessage(userMessage);
-    const aiResponse = result.response.text();
+    
+    // Добавляем сообщение пользователя в историю
+    session.history.push({
+      role: 'user',
+      content: userMessage
+    });
+    
+    // Ограничиваем историю последними 20 сообщениями
+    if (session.history.length > 20) {
+      session.history = session.history.slice(-20);
+    }
+    
+    // Запрос к Groq
+    const completion = await groq.chat.completions.create({
+      messages: session.history,
+      model: 'llama-3.3-70b-versatile',
+      temperature: 0.7,
+      max_tokens: 2048,
+      top_p: 0.9,
+    });
+    
+    const aiResponse = completion.choices[0].message.content;
+    
+    // Добавляем ответ AI в историю
+    session.history.push({
+      role: 'assistant',
+      content: aiResponse
+    });
     
     session.messageCount++;
     
@@ -129,38 +129,15 @@ bot.on('text', async (ctx) => {
     
     let errorMessage = '❌ An error occurred: ' + error.message;
     
-    if (error.message.includes('429') || error.message.includes('quota') || error.message.includes('RESOURCE_EXHAUSTED')) {
-      errorMessage = '⚠️ Rate limit exceeded. Retrying in 5 seconds...';
-      await ctx.reply(errorMessage);
-      
-      // Автоматически повторить через 5 секунд
-      await new Promise(resolve => setTimeout(resolve, 5000));
-      try {
-        await ctx.sendChatAction('typing');
-        const session = getUserSession(userId);
-        const result = await session.chat.sendMessage(userMessage);
-        const aiResponse = result.response.text();
-        
-        const chunks = splitMessage(aiResponse);
-        for (const chunk of chunks) {
-          await ctx.reply(chunk);
-          if (chunks.length > 1) {
-            await new Promise(resolve => setTimeout(resolve, 500));
-          }
-        }
-        return; // Успешно обработали
-      } catch (retryError) {
-        console.error('Retry error:', retryError);
-        errorMessage = '❌ Still rate limited. Please wait a minute and try again.';
-      }
-    } else if (error.message.includes('SAFETY')) {
-      errorMessage = '⚠️ Content filtered. Try rephrasing.';
+    if (error.message.includes('429') || error.message.includes('rate_limit')) {
+      errorMessage = '⚠️ Rate limit exceeded. Please wait a moment and try again.';
+    } else if (error.message.includes('context_length')) {
+      errorMessage = '⚠️ Conversation too long. Use /clear to start fresh.';
     }
     
     await ctx.reply(errorMessage);
   }
 });
-
 
 // Vercel Serverless Function Handler
 module.exports = async (req, res) => {
@@ -169,7 +146,7 @@ module.exports = async (req, res) => {
       await bot.handleUpdate(req.body);
       res.status(200).json({ ok: true });
     } else {
-      res.status(200).json({ status: 'Bot is running on Vercel!' });
+      res.status(200).json({ status: 'Bot is running on Vercel with Groq!' });
     }
   } catch (error) {
     console.error('Webhook error:', error);
